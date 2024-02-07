@@ -1,133 +1,141 @@
 package controllers
 
 import (
+	"Gin/database"
+	"Gin/models"
 	"fmt"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
 )
 
-type Car struct {
-	CarID string `json: "car_id"`
-	Brand string `json: "brand"`
-	Model string `json: "model"`
-	Price int    `json: "price"`
-}
+// CreateCars godoc
+// @Summary Post details for a given Id
+// @Description Post details of car corresponding to the input Id
+// @Tags cars
+// @Accept json
+// @Produce json
+// @Param models.Car body models.Car true "create car"
+// @Success 200 {object} models.Car
+// @Router /cars/ [post]
+func CreateCars(c *gin.Context) {
+	var db = database.GetDB()
 
-var CarDatas = []Car{}
-
-func CreateCar(ctx *gin.Context) {
-	var newCar Car
-
-	if err := ctx.ShouldBindJSON(&newCar); err != nil {
-		ctx.AbortWithError(http.StatusBadRequest, err)
+	var input models.Car
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	newCar.CarID = fmt.Sprintf("c%d", len(CarDatas)+1)
-	CarDatas = append(CarDatas, newCar)
 
-	ctx.JSON(http.StatusCreated, gin.H{
-		"car": newCar,
+	fmt.Println("slebew", input.TypeCars)
+
+	carinput := models.Car{Pemilik: input.Pemilik, Merk: input.Merk, Harga: input.Harga, TypeCars: input.TypeCars}
+
+	err := db.Create(&carinput).Error
+
+	c.JSON(http.StatusOK, gin.H{"data": carinput})
+	fmt.Println("gndfgn", err)
+
+}
+
+// UpdateCars godoc
+// @Summary Update car indetified by the given Id
+// @Description Update the car corresponding to the input Id
+// @Tags cars
+// @Accept json
+// @Produce json
+// @Param id path int true "ID of the car to be updated"
+// @Success 200 {object} models.Car
+// @Router /cars/{id} [patch]
+func UpdateCar(c *gin.Context) {
+	var db = database.GetDB()
+	id := c.Param("id")
+
+	input := models.Car{}
+
+	// var car models.Car = c.ShouldBindJSON(&input)
+	err := db.First(&input).Where("id = ?", id).Updates(models.Car{
+		Merk: input.Merk,
+	}).Error
+	// err := db.First(&car, "Id=?", c.Param("id")).Update(models.Car{
+	// 	Pemilik:  car.Pemilik,
+	// 	Merk:     car.Merk,
+	// 	Harga:    car.Harga,
+	// 	TypeCars: car.TypeCars,
+	// }).Error
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Record not found!"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"updatedCar": input,
 	})
 }
 
-func UpdateCar(ctx *gin.Context) {
-	carID := ctx.Param("carID")
-	condition := false
-	var updateCar Car
+// GetOneCar godoc
+// @Summary Get details for a given Id
+// @Description Get details of car corresponding to the input Id
+// @Tags cars
+// @Accept json
+// @Produce json
+// @Param Id path int true "ID of the car"
+// @Success 200 {object} models.Car
+// @Router /cars/{Id} [get]
+func GetOneCar(c *gin.Context) {
 
-	if err := ctx.ShouldBindJSON(&updateCar); err != nil {
-		ctx.AbortWithError(http.StatusBadRequest, err)
+	var db = database.GetDB()
+
+	var carOne models.Car
+
+	err := db.First(&carOne, "Id= ?", c.Param("id")).Error
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Record not found!"})
 		return
 	}
 
-	for i, car := range CarDatas {
-		if carID == car.CarID {
-			condition = true
-			CarDatas[i] = updateCar
-			CarDatas[i].CarID = carID
-			break
-		}
-	}
+	c.JSON(http.StatusOK, gin.H{"data One": carOne})
 
-	if !condition {
-		ctx.AbortWithStatusJSON(http.StatusNotFound, gin.H{
-			"error_status":  "Data Not Found",
-			"error_message": fmt.Sprintf("car with id %v not found", carID),
-		})
-		return
-	}
-	ctx.JSON(http.StatusOK, gin.H{
-		"message": fmt.Sprintf("car with id %v has been successfully updated", carID),
-	})
 }
 
-func GetCar(ctx *gin.Context) {
-	carID := ctx.Param("carID")
-	condition := false
-	var carData Car
+// GetAllCars godoc
+// @Summary Get details
+// @Description Get details of all car
+// @Tags cars
+// @Accept json
+// @Produce json
+// @Success 200 {object} models.Car
+// @Router /orders [get]
+func GetAllCars(c *gin.Context) {
+	var db = database.GetDB()
 
-	for i, car := range CarDatas {
-		if carID == car.CarID {
-			condition = true
-			carData = CarDatas[i]
-			break
-		}
+	var cars []models.Car
+	err := db.Find(&cars).Error
+
+	if err != nil {
+		fmt.Println("Error getting car datas :", err.Error())
 	}
-
-	if !condition {
-		ctx.AbortWithStatusJSON(http.StatusNotFound, gin.H{
-			"error_status":  "Data Not Found",
-			"error_message": fmt.Sprintf("car with id %v not found", carID),
-		})
-		return
-	}
-
-	ctx.JSON(http.StatusOK, gin.H{
-		"car": carData,
-	})
+	c.JSON(http.StatusOK, gin.H{"data": cars})
 }
 
-func GetAllCars(ctx *gin.Context) {
-	if len(CarDatas) == 0 {
-		ctx.AbortWithStatusJSON(http.StatusNotFound, gin.H{
-			"error_status":  "Data Not Found",
-			"error_message": "No cars found",
-		})
+// DeleteCars godoc
+// @Summary Delete car identified by the given Id
+// @Description Delete the order corresponding to the input id
+// @Tags cars
+// @Accept json
+// @Produce json
+// @Param id path int true "ID of the car to be deleted"
+// @Success 204 "No Content"
+// @Router /cars/{id} [delete]
+func DeleteCars(c *gin.Context) {
+	var db = database.GetDB()
+
+	var carDelete models.Car
+	err := db.First(&carDelete, "Id = ?", c.Param("id")).Error
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Record not found!"})
 		return
 	}
 
-	ctx.JSON(http.StatusOK, gin.H{
-		"cars": CarDatas,
-	})
-}
-
-func DeteleCar(ctx *gin.Context) {
-	carID := ctx.Param("carID")
-	condition := false
-	var carIndex int
-
-	for i, car := range CarDatas {
-		if carID == car.CarID {
-			condition = true
-			carIndex = i
-			break
-		}
-	}
-
-	if !condition {
-		ctx.AbortWithStatusJSON(http.StatusNotFound, gin.H{
-			"error_status":  "Data Not Found",
-			"error_message": fmt.Sprintf("car with id %v not found", carID),
-		})
-		return
-	}
-
-	copy(CarDatas[carIndex:], CarDatas[carIndex+1:])
-	CarDatas[len(CarDatas)-1] = Car{}
-	CarDatas = CarDatas[:len(CarDatas)-1]
-
-	ctx.JSON(http.StatusOK, gin.H{
-		"message": fmt.Sprintf("car with id %v has been successfully deleted", carID),
-	})
+	db.Delete(&carDelete)
+	c.JSON(http.StatusOK, gin.H{"data": true})
 }
